@@ -1,0 +1,96 @@
+---
+title: "TK_208: Virtual 4C analysis"
+author: "Hernan Lorenzi"
+format: html
+echo: false
+warning: false
+---
+
+## Project goals:
+
+1. Perform genome-wide virtual 4C analysis of different HiC datasets using SuHw gene (Dme6 = 3R:14,304,455..14,308,589 [-]) as bait.
+2. Investigate the presence of discarded HiC reads containing hits to SuHw gene and then determine if SuHw unmatched portions of reads hit anything else in the Dm genome (e.g. repetitive sequences).
+
+#### Notes:
+- Using Dm6.52 as the reference genome and annotation.
+- Only main chromosomes were included.
+
+
+```{r}
+WD <- "/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208"
+resolution <- 5000
+
+# Load required packages
+pacman::p_load(tidyverse, GenomicFeatures, txdbmaker, plotgardener, org.Dm.eg.db, TxDb.Dmelanogaster.UCSC.dm6.ensGene, BSgenome.Dmelanogaster.UCSC.dm6, AnnotationDbi, HiContacts)
+
+
+# Create Dm6 assembly
+Dm6 <- assembly(
+    Genome = "Dm6",
+    TxDb = "TxDb.Dmelanogaster.UCSC.dm6.ensGene",
+    OrgDb = "org.Dm.eg.db",
+    BSgenome = "BSgenome.Dmelanogaster.UCSC.dm6", 
+    gene.id.column = "FLYBASE",
+    display.column = "SYMBOL"
+)     
+
+# Load HICCUP loop identification tables
+hiccup_files <- list()
+samples <- c("mock_1", "mock_2", "Kc167_NT_rep1", "Kc167_NT_rep2","Kc167_NT_rep3","Kc167_NT_rep4")
+for (s in samples) {
+  hiccup_file <- list.files(path = paste(WD,"juicer_results",s,sep = "/"),
+                            pattern = paste0("postprocessed_pixels_",resolution,".bedpe"), 
+                            full.names = TRUE, , recursive = TRUE)
+  hiccup_files[[s]] <- read_tsv(file = hiccup_file, col_names = TRUE, trim_ws = TRUE, ) |>
+                        rename("#chr1"="chr1")
+  hiccup_files[[s]] <- hiccup_files[[s]][-1,] |> 
+    mutate(chr1 = paste0("chr",chr1)) |> 
+    mutate(chr2 = paste0("chr",chr2))
+}
+
+
+```
+
+# Import ChIRP data from Irene
+```{r}
+SuHw_ChIRP_concensus_file <- "../../data/bed_files/SuHw_ChIRP_concensus.bed"
+GSE200993_Mock_SuHw.overlap_file <- "../../data/bed_files/GSE200993_Mock_SuHw.overlap.bed"
+
+SuHw_ChIRP_conc.df <- read_tsv(file = SuHw_ChIRP_concensus_file, col_names = FALSE)
+GSE200993_Mock_SuHw.overlap.df <- read_tsv(file = GSE200993_Mock_SuHw.overlap_file, col_names = FALSE)
+
+# Add fake signal column and strand as '.'
+SuHw_ChIRP_conc.df <- SuHw_ChIRP_conc.df |> mutate (score = 10, strand = '.')
+GSE200993_Mock_SuHw.overlap.df <- GSE200993_Mock_SuHw.overlap.df |> mutate (score = 10, strand = '.')
+```
+
+# Make plots
+
+```{r}
+source("../scripts/plots_virtual4C.R")
+plot_virtual_4C(s = "mock_1", my_hiccup_files = hiccup_files, resolution = 5000)
+plot_virtual_4C(s = "mock_1", my_hiccup_files = hiccup_files, resolution = 10000)
+plot_virtual_4C(s = "mock_1", my_hiccup_files = hiccup_files, resolution = 25000)
+
+plot_virtual_4C(s = "mock_2", my_hiccup_files = hiccup_files, resolution = 5000)
+plot_virtual_4C(s = "mock_2", my_hiccup_files = hiccup_files, resolution = 10000)
+plot_virtual_4C(s = "mock_2", my_hiccup_files = hiccup_files, resolution = 25000)
+
+plot_virtual_4C(s = "Kc167_NT_rep1", my_hiccup_files = hiccup_files, resolution = 5000)
+plot_virtual_4C(s = "Kc167_NT_rep1", my_hiccup_files = hiccup_files, resolution = 10000)
+plot_virtual_4C(s = "Kc167_NT_rep1", my_hiccup_files = hiccup_files, resolution = 25000)
+
+plot_virtual_4C(s = "Kc167_NT_rep2", my_hiccup_files = hiccup_files, resolution = 5000)
+plot_virtual_4C(s = "Kc167_NT_rep2", my_hiccup_files = hiccup_files, resolution = 10000)
+plot_virtual_4C(s = "Kc167_NT_rep2", my_hiccup_files = hiccup_files, resolution = 25000)
+
+plot_virtual_4C(s = "Kc167_NT_rep3", my_hiccup_files = hiccup_files, resolution = 5000)
+plot_virtual_4C(s = "Kc167_NT_rep3", my_hiccup_files = hiccup_files, resolution = 10000)
+plot_virtual_4C(s = "Kc167_NT_rep3", my_hiccup_files = hiccup_files, resolution = 25000)
+
+plot_virtual_4C(s = "Kc167_NT_rep4", my_hiccup_files = hiccup_files, resolution = 5000)
+plot_virtual_4C(s = "Kc167_NT_rep4", my_hiccup_files = hiccup_files, resolution = 10000)
+plot_virtual_4C(s = "Kc167_NT_rep4", my_hiccup_files = hiccup_files, resolution = 25000)
+
+```
+
