@@ -1,0 +1,26 @@
+## Metadata
+
+# Path to sample file
+metadata: ./config/samplesheet.csv
+
+# rRNA reference info
+reference:  
+    # Path to rRNA file fasta format
+    fasta: /home/lorenziha/data/JCVI/NORBERTO/NASA/rRNA_databases_v4/smr_v4.3_default_db.fasta
+
+# SortMeRNA database    
+sortmernadb:
+    # Path to SortMeRNA database
+    path: data/sortmerna_idx
+    
+# Path to raw reads directory (fastq files) 
+reads: data/GSE63518
+      #/home/lorenziha/data/JCVI/NORBERTO/NASA/6414_30-RNA_split/6414_30-RNA_S64_R1_001.fastq.gz.split
+      #/home/lorenziha/data/JCVI/NORBERTO/NASA/6414_Illumina
+
+# Perform trimming [True, False]
+trimming: True
+
+# Path to trimming adapters file
+adapters: data/adapters/adapters.fa
+
