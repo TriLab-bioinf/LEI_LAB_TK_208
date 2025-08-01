@@ -44,7 +44,7 @@ juicer.sh -y ./data_reference/dme_DpnII.txt -z ./data_reference/dmel-all-chromos
 ```
 ### Virtual 4C analysis with R
 
-All analysis was don in R (v4.3.3) with the following R quarto script [virtual-4C-analysis.qmd]("./R/render/virtual-4C-analysis.qmd"). Auxiliary R scripts are located in [R/scripts]("./R/scripts").
+All analysis was don in R (v4.3.3) with the following R quarto script [virtual-4C-analysis.qmd]("R/render/virtual-4C-analysis.qmd"). Auxiliary R scripts are located in [R/scripts]("R/scripts").
 
 R environment with the packages and verions used for the analysis can be regenerated using the `renv.lock` file by running the following command in R.
 
