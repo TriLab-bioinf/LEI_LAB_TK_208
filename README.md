@@ -39,7 +39,7 @@ sbatch ./run_snakemake.sh ./workflow/hic_pipeline.smk
 
 ### Run juicer pipeline
 ```
-module load juicer
+module load juicer/1.6
 juicer.sh -y ./data_reference/dme_DpnII.txt -z ./data_reference/dmel-all-chromosome-r6.52.fasta -p ./data_reference/dmel_chrom_sizes.txt
 ```
 
