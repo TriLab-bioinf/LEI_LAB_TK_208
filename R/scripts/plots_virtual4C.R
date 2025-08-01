@@ -2,6 +2,7 @@ plot_virtual_4C <- function(s, my_hiccup_files, resolution){
 
 my_key <- paste0(s,":",resolution)
 bedpe <- tibble()
+
 # Subset hiccup results to region of interest containing bait start-end
 tryCatch({
   my_hiccup_files[[my_key]]
@@ -78,7 +79,7 @@ bedpe <- bedpe |> mutate(overlap = if_else((x1 %in% my_regions_of_interest_overl
 
 # Import HiC data for region of interest
 hicFile <- list.files(path = paste(WD,"juicer_results",s,sep = "/"),
-                      pattern = paste0(s,"_inter_30.hic"), 
+                      pattern = paste0("*inter_30.hic"), 
                       full.names = TRUE, , recursive = TRUE)
 
 hicDataChromRegion <- readHic(file = hicFile,
