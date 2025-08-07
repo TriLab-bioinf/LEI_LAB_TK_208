@@ -38,13 +38,17 @@ Dm6 <- assembly(
 
 # Load HICCUP loop identification tables
 hiccup_files <- list()
-samples <- c("mock_1", "mock_2", "Kc167_NT_rep1", "Kc167_NT_rep2",
-             "Kc167_NT_rep3","Kc167_NT_rep4","HiC_NT_rep1-4_merged")
-resolutions <- c(5000, 10000, 25000)
+# samples <- c("mock_1", "mock_2", "Kc167_NT_rep1", "Kc167_NT_rep2",
+#              "Kc167_NT_rep3","Kc167_NT_rep4","HiC_NT_rep1-4_merged")
+
+samples <- c("mock_1", "mock_2", "HiC_NT_rep1-4_merged")
+hicupps_loop_dir <- "inter_30_loops_1K_5K_10K_25K"
+
+resolutions <- c(1000, 5000, 10000, 25000)
 for (s in samples) {
   for (resolution in resolutions) {
     my_key <- paste0(s,":",resolution)
-    hiccup_file <- list.files(path = paste(WD,"juicer_results",s,sep = "/"),
+    hiccup_file <- list.files(path = paste(WD,"juicer_results",s,"aligned",hicupps_loop_dir,sep = "/"),
                               pattern = paste0("postprocessed_pixels_",resolution,".bedpe"), 
                               full.names = TRUE, , recursive = TRUE)
     hiccup_files[[my_key]] <- read_tsv(file = hiccup_file, col_names = TRUE, trim_ws = TRUE, ) |>
@@ -82,11 +86,17 @@ GSE200993_Mock_SuHw.overlap.gr <- GRanges(seqnames = Rle(values =  GSE200993_Moc
 
 ```{r}
 
-dir.create(path = "/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208/R/virtual-4C-analysis_files/Tables", recursive = TRUE, showWarnings = FALSE)
+dir.create(path = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables"), recursive = TRUE, showWarnings = FALSE)
+
 source("/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208/R/scripts/plots_virtual4C.R")
 
 for (sample in samples){
   print(paste("Sample_ID =",sample))
+  
+  my_bedpe <- plot_virtual_4C(s = sample, my_hiccup_files = hiccup_files, resolution = 1000)
+  if( !is.null(my_bedpe) ){
+    write_csv(x = my_bedpe, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables/virtual4C-",sample,"-1Kb.csv"))
+  }
   
   my_bedpe <- plot_virtual_4C(s = sample, my_hiccup_files = hiccup_files, resolution = 5000)
   if( !is.null(my_bedpe) ){
