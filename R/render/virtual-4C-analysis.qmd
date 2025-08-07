@@ -100,17 +100,17 @@ for (sample in samples){
   
   my_bedpe <- plot_virtual_4C(s = sample, my_hiccup_files = hiccup_files, resolution = 5000)
   if( !is.null(my_bedpe) ){
-    write_csv(x = my_bedpe, file = paste0("./virtual-4C-analysis_files/Tables/virtual4C-",sample,"-5Kb.csv"))
+    write_csv(x = my_bedpe, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables/virtual4C-",sample,"-5Kb.csv"))
   }
   
   my_bedpe <- plot_virtual_4C(s = sample, my_hiccup_files = hiccup_files, resolution = 10000)
   if( !is.null(my_bedpe) ){
-    write_csv(x = my_bedpe, file = paste0("./virtual-4C-analysis_files/Tables/virtual4C-",sample,"-10Kb.csv"))
+    write_csv(x = my_bedpe, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables/virtual4C-",sample,"-10Kb.csv"))
   }
   
   my_bedpe <- plot_virtual_4C(s = sample, my_hiccup_files = hiccup_files, resolution = 25000)
   if( !is.null(my_bedpe) ){
-    write_csv(x = my_bedpe, file = paste0("./virtual-4C-analysis_files/Tables/virtual4C-",sample,"-25Kb.csv"))
+    write_csv(x = my_bedpe, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables/virtual4C-",sample,"-25Kb.csv"))
   }
 }
 
