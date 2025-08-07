@@ -14,6 +14,8 @@ warning: false
 #### Notes:
 - Using Dm6.52 as the reference genome and annotation.
 - Only main chromosomes were included.
+- CLosest DpnII sites to gene boundaries are 3R:14,304,362-14,308,801
+- Closest bins to SuHw boundaries are  
 
 
 ```{r}
@@ -24,7 +26,7 @@ WD <- "/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208"
 pacman::p_load(tidyverse, GenomicFeatures, txdbmaker, plotgardener, org.Dm.eg.db, TxDb.Dmelanogaster.UCSC.dm6.ensGene, BSgenome.Dmelanogaster.UCSC.dm6, AnnotationDbi, HiContacts)
 
 
-# Create Dm6 assembly
+# Create Dm6 assembly for plotgardener
 Dm6 <- assembly(
     Genome = "Dm6",
     TxDb = "TxDb.Dmelanogaster.UCSC.dm6.ensGene",
@@ -36,7 +38,8 @@ Dm6 <- assembly(
 
 # Load HICCUP loop identification tables
 hiccup_files <- list()
-samples <- c("mock_1", "mock_2", "Kc167_NT_rep1", "Kc167_NT_rep2","Kc167_NT_rep3","Kc167_NT_rep4")
+samples <- c("mock_1", "mock_2", "Kc167_NT_rep1", "Kc167_NT_rep2",
+             "Kc167_NT_rep3","Kc167_NT_rep4","HiC_NT_rep1-4_merged")
 resolutions <- c(5000, 10000, 25000)
 for (s in samples) {
   for (resolution in resolutions) {
@@ -71,7 +74,7 @@ GSE200993_Mock_SuHw.overlap.df <- GSE200993_Mock_SuHw.overlap.df |> mutate (scor
 SuHw_ChIRP_conc.gr <- GRanges(seqnames = Rle(values = SuHw_ChIRP_conc.df$X1), ranges = IRanges(start = SuHw_ChIRP_conc.df$X2, end =  SuHw_ChIRP_conc.df$X3))
 
 
-GSE200993_Mock_SuHw.overlap.gr <- GRanges(seqnames = Rle(values =  GSE200993_Mock_SuHw.overlap.df$X2), ranges = IRanges(start = GSE200993_Mock_SuHw.overlap.df$X2 ,end =  GSE200993_Mock_SuHw.overlap.df$X3))
+GSE200993_Mock_SuHw.overlap.gr <- GRanges(seqnames = Rle(values =  GSE200993_Mock_SuHw.overlap.df$X1), ranges = IRanges(start = GSE200993_Mock_SuHw.overlap.df$X2 ,end =  GSE200993_Mock_SuHw.overlap.df$X3))
 
 ```
 
@@ -79,8 +82,8 @@ GSE200993_Mock_SuHw.overlap.gr <- GRanges(seqnames = Rle(values =  GSE200993_Moc
 
 ```{r}
 
-dir.create(path = "./virtual-4C-analysis_files/Tables", recursive = TRUE, showWarnings = FALSE)
-source("../scripts/plots_virtual4C.R")
+dir.create(path = "/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208/R/virtual-4C-analysis_files/Tables", recursive = TRUE, showWarnings = FALSE)
+source("/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208/R/scripts/plots_virtual4C.R")
 
 for (sample in samples){
   print(paste("Sample_ID =",sample))
