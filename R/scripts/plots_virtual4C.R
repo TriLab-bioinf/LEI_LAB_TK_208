@@ -9,10 +9,12 @@ tryCatch({
 }, error = function(e) {
   stop(paste("Error: HICCUP files for sample", my_key, "not found."))
 })
-tryCatch({  
+tryCatch({
+  # Fetch contact info from hic file just for bins overlapping region of interest
+  # Region of interest is defined as the DpnII coord closest to SuHw gene boundaries.
   bedpe <- my_hiccup_files[[my_key]] |> 
-    filter(  ((((x1-14308589) * (x2-14304455)) < 0 & chr1 == "chr3R")| 
-                (((y1-14308589) * (y2-14304455)) < 0 & chr2 == "chr3R")) & 
+    filter(  ((((x1-14308801) * (x2-14304362)) < 0 & chr1 == "chr3R")| 
+                (((y1-14308801) * (y2-14304362)) < 0 & chr2 == "chr3R")) & 
                fdrBL <= 0.05 & 
                fdrDonut <= 0.05 & 
                fdrH <= 0.05 & 
@@ -36,9 +38,9 @@ if (nrow(bedpe) == 0) {
 
 print(paste("\n\n***** Resolution", resolution, "****\n\n"))
 
+# Set coordinates of genomic region to be plotted.
 region_start <- min(c(bedpe$x1, bedpe$y1)) - 50000
 region_end <- max(c(bedpe$x2, bedpe$y2)) + 50000
-
 
 # Extract genes overlapping HICCUP loop coordinates for region of interest  ------------------
 
@@ -46,6 +48,7 @@ region_end <- max(c(bedpe$x2, bedpe$y2)) + 50000
 my_regions_of_interest.gr <- GRanges(seqnames = "chr3R",
                                   ranges = IRanges(start = c(bedpe$x1, bedpe$y1), 
                                                    end = c(bedpe$x2, bedpe$y2)))
+
 
 # Extract all gene ranges from the TxDb object
 all_genes <- genes(TxDb.Dmelanogaster.UCSC.dm6.ensGene)
@@ -64,6 +67,49 @@ my_interacting_genes <- data.frame(gene = overlapping_gene_symbols$SYMBOL, color
 
 # move row containing gene su(Hw) to the first row in my_interacting_genes
 my_interacting_genes <- my_interacting_genes[order(my_interacting_genes$gene != "su(Hw)"),]
+
+
+# Add contact scores to my_regions_of_interest.gr for plotting ------------------
+# Entering observed twice to account for from and to contact coords that are in two diff rows
+bedpe_all_bins <- my_hiccup_files[[my_key]] |> 
+  filter(  ((((x1-14308801) * (x2-14304362)) < 0 & chr1 == "chr3R")| 
+              (((y1-14308801) * (y2-14304362)) < 0 & chr2 == "chr3R")))
+
+ # Define a GRanges object for a specific region
+ my_roi_all.gr <- GRanges(seqnames = "chr3R",
+                          ranges = IRanges(start = c(bedpe_all_bins$x1, bedpe_all_bins$y1), 
+                                                       end = c(bedpe_all_bins$x2, bedpe_all_bins$y2)))
+           
+mcols(my_roi_all.gr)$observed <- rep(bedpe_all_bins$observed, n=2)
+
+# Merge overlaping ranges
+my_roi_all_merged.gr <- reduce(my_roi_all.gr)
+
+# Find overlaps between my_regions_of_interest.gr and my_regions_of_interest_merged.gr
+overlaps <- findOverlaps(my_roi_all.gr, my_roi_all_merged.gr, type = "any", ignore.strand = TRUE)
+
+# Aggregate metadata for the merged ranges (example: concatenate gene names)
+# Create an empty list to store aggregated metadata
+aggregated_metadata <- list()
+for (i in seq_along(my_roi_all_merged.gr)) {
+  # Get original ranges that overlap with the current reduced range
+  original_indices <- queryHits(overlaps)[subjectHits(overlaps) == i]
+  
+  # Concatenate gene names
+  aggregated_metadata[[i]] <- sum(my_roi_all.gr$observed[original_indices])
+}
+
+# Add aggregated metadata to the reduced GRanges object
+mcols(my_roi_all_merged.gr)$observed_sum <- unlist(aggregated_metadata)
+
+# delete my_roi_all_merged.gr intervals overlapping coords 14304362-14308801
+my_roi_all_merged.gr <- my_roi_all_merged.gr[(end(my_roi_all_merged.gr) < 14304362 | start(my_roi_all_merged.gr) > 14308801)]
+
+# Convert the GRanges object to a data frame for plotting
+my_roi_all_merged.df <- as.data.frame(my_roi_all_merged.gr)[,1:3] |> 
+  mutate(score = mcols(my_roi_all_merged.gr)$observed_sum, strand = '.')
+
+
 
 # Search regions of interest (Contacts) that overlap with SuHw_ChIRP_conc.gr ------------------
 SuHw_ChIRP_overlap <- findOverlaps(SuHw_ChIRP_conc.gr, my_regions_of_interest.gr, type = "any", ignore.strand = TRUE, maxgap = 0)
@@ -93,8 +139,8 @@ hicDataChromRegion <- readHic(file = hicFile,
 # Make virtual-4C plot
 ################################
 
-pdf(file = paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/Plots/virtual4c-",s,"-",resolution,".pdf"), height = 16, width = 16)
-#png(file = paste0("./virtual-4C-analysis_files/Plots/virtual4c-",s,"-",resolution,".png"), height = 4600, width = 4600, res=300)
+  pdf(file = paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/Plots/virtual4c-",s,"-",resolution,".pdf"), height = 16, width = 16)
+  #png(file = paste0("./virtual-4C-analysis_files/Plots/virtual4c-",s,"-",resolution,".png"), height = 4600, width = 4600, res=300)
 
   # 1- create page -------------------------------
   pageCreate(width = 16, height = 20, default.units = "inches", ygrid = 0, xgrid = 0, showGuides = FALSE)
@@ -168,10 +214,26 @@ pdf(file = paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     just = c("left", "top"), default.units = "inches"
   )
   
-  # 7- Plot Virtual 4C -------------------------------
+  
+  # 7- Plot all Virtual 4C contacts, including N.S.  -------------------------------
+  plotText(
+    label = "Virtual 4C Su(Hw)", fontsize = 8,
+    x = 0.5, y = 13.3, just = "left",
+    default.units = "inches",
+  )
+  
+  plotSignal(
+    data = my_roi_all_merged.df,
+    chrom = "chr3R", chromstart = region_start, chromend = region_end,
+    assembly = Dm6,
+    x = 0.5, y = 13.4, width = 15, height = 1, linecolor = "#6600cc", 
+    just = c("left", "top"), default.units = "inches"
+  )
+  
+  # 8- Plot Virtual 4C -------------------------------
   plotText(
     label = paste("Virtual 4C", s), fontsize = 8,
-    x = 0.5, y = 13.3, just = "left",
+    x = 0.5, y = 14.5, just = "left",
     default.units = "inches",
   )
   
@@ -186,7 +248,7 @@ pdf(file = paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     flip = TRUE,
     archHeight = bedpe$archight,
     alpha = 1,
-    x = 0.5, y = 13.4, width = 15, height = 1,
+    x = 0.5, y = 14.6, width = 15, height = 1,
     just = c("left", "top"),
     default.units = "inches", baseline = TRUE, lwd = 0.2
   )
