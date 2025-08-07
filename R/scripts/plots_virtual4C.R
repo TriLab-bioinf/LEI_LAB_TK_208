@@ -24,19 +24,19 @@ tryCatch({
     arrange(centroid2)
   
 }, error = function(e) {
-  warning(paste0("\n\nThe following error accurred:",e$message, "\n\n"))
+  warning(paste0("The following error accurred:",e$message))
   return(NULL)
 }, warning = function(w) {
-  warning(paste0("\n\nThe following warning accurred:",w$message, "\n\n"))
+  warning(paste0("The following warning accurred:",w$message))
   return(NULL)
 })
 
 if (nrow(bedpe) == 0) {
-  warning("\n\n***** No significant interactions found in the specified region. *****\n\n")
+  warning("***** No significant interactions found in the specified region. *****")
   return(NULL)
 }
 
-print(paste("\n\n***** Resolution", resolution, "****\n\n"))
+print(paste("***** Resolution", resolution, "****"))
 
 # Set coordinates of genomic region to be plotted.
 region_start <- min(c(bedpe$x1, bedpe$y1)) - 50000
@@ -69,45 +69,44 @@ my_interacting_genes <- data.frame(gene = overlapping_gene_symbols$SYMBOL, color
 my_interacting_genes <- my_interacting_genes[order(my_interacting_genes$gene != "su(Hw)"),]
 
 
-# Add contact scores to my_regions_of_interest.gr for plotting ------------------
-# Entering observed twice to account for from and to contact coords that are in two diff rows
-bedpe_all_bins <- my_hiccup_files[[my_key]] |> 
-  filter(  ((((x1-14308801) * (x2-14304362)) < 0 & chr1 == "chr3R")| 
-              (((y1-14308801) * (y2-14304362)) < 0 & chr2 == "chr3R")))
-
- # Define a GRanges object for a specific region
- my_roi_all.gr <- GRanges(seqnames = "chr3R",
-                          ranges = IRanges(start = c(bedpe_all_bins$x1, bedpe_all_bins$y1), 
-                                                       end = c(bedpe_all_bins$x2, bedpe_all_bins$y2)))
-           
-mcols(my_roi_all.gr)$observed <- rep(bedpe_all_bins$observed, n=2)
-
-# Merge overlaping ranges
-my_roi_all_merged.gr <- reduce(my_roi_all.gr)
-
-# Find overlaps between my_regions_of_interest.gr and my_regions_of_interest_merged.gr
-overlaps <- findOverlaps(my_roi_all.gr, my_roi_all_merged.gr, type = "any", ignore.strand = TRUE)
-
-# Aggregate metadata for the merged ranges (example: concatenate gene names)
-# Create an empty list to store aggregated metadata
-aggregated_metadata <- list()
-for (i in seq_along(my_roi_all_merged.gr)) {
-  # Get original ranges that overlap with the current reduced range
-  original_indices <- queryHits(overlaps)[subjectHits(overlaps) == i]
-  
-  # Concatenate gene names
-  aggregated_metadata[[i]] <- sum(my_roi_all.gr$observed[original_indices])
-}
-
-# Add aggregated metadata to the reduced GRanges object
-mcols(my_roi_all_merged.gr)$observed_sum <- unlist(aggregated_metadata)
-
-# delete my_roi_all_merged.gr intervals overlapping coords 14304362-14308801
-my_roi_all_merged.gr <- my_roi_all_merged.gr[(end(my_roi_all_merged.gr) < 14304362 | start(my_roi_all_merged.gr) > 14308801)]
-
-# Convert the GRanges object to a data frame for plotting
-my_roi_all_merged.df <- as.data.frame(my_roi_all_merged.gr)[,1:3] |> 
-  mutate(score = mcols(my_roi_all_merged.gr)$observed_sum, strand = '.')
+# # Add contact scores to my_regions_of_interest.gr for plotting ------------------
+# # Entering observed twice to account for from and to contact coords that are in two diff rows
+# bedpe_all_bins <- my_hiccup_files[[my_key]] |> 
+#   filter(  ((((x1-14308801) * (x2-14304362)) < 0 & chr1 == "chr3R")| 
+#               (((y1-14308801) * (y2-14304362)) < 0 & chr2 == "chr3R")))
+# 
+#  # Define a GRanges object for a specific region
+#  my_roi_all.gr <- GRanges(seqnames = "chr3R",
+#                           ranges = IRanges(start = c(bedpe_all_bins$x1, bedpe_all_bins$y1), 
+#                                                        end = c(bedpe_all_bins$x2, bedpe_all_bins$y2)))
+#            
+# mcols(my_roi_all.gr)$observed <- rep(bedpe_all_bins$observed, n=2)
+# 
+# # Merge overlaping ranges
+# my_roi_all_merged.gr <- reduce(my_roi_all.gr)
+# 
+# # Find overlaps between my_regions_of_interest.gr and my_regions_of_interest_merged.gr
+# 
+# # Aggregate metadata for the merged ranges (example: concatenate gene names)
+# # Create an empty list to store aggregated metadata
+# aggregated_metadata <- list()
+# for (i in seq_along(my_roi_all_merged.gr)) {
+#   # Get original ranges that overlap with the current reduced range
+#   original_indices <- queryHits(overlaps)[subjectHits(overlaps) == i]
+#   
+#   # Concatenate gene names
+#   aggregated_metadata[[i]] <- sum(my_roi_all.gr$observed[original_indices])
+# }
+# 
+# # Add aggregated metadata to the reduced GRanges object
+# mcols(my_roi_all_merged.gr)$observed_sum <- unlist(aggregated_metadata)
+# 
+# # delete my_roi_all_merged.gr intervals overlapping coords 14304362-14308801
+# my_roi_all_merged.gr <- my_roi_all_merged.gr[(end(my_roi_all_merged.gr) < 14304362 | start(my_roi_all_merged.gr) > 14308801)]
+# 
+# # Convert the GRanges object to a data frame for plotting
+# my_roi_all_merged.df <- as.data.frame(my_roi_all_merged.gr)[,1:3] |> 
+#   mutate(score = mcols(my_roi_all_merged.gr)$observed_sum, strand = '.')
 
 
 
@@ -134,10 +133,53 @@ hicDataChromRegion <- readHic(file = hicFile,
                               resolution = resolution, res_scale = "BP", norm = "KR"
 )
 
+# Add contact scores to my_regions_of_interest.gr for plotting ------------------
+
+# Entering observed twice to account for from and to contact coords that are in two diff rows
+
+contacts.df <- hicDataChromRegion |> rename("3R_A"="x1", "3R_B"="y1") |> mutate(x2=x1+resolution-2, y2=y1+resolution-2) |> filter( ( ( (x1-14308801) * ( x2-14304362) ) < 0 )| (( (y1-14308801) * (y2-14304362)) < 0))
+
+# Define a GRanges object for a specific region
+my_roi_all.gr <- GRanges(seqnames = "chr3R",
+                         ranges = IRanges(start = c(contacts.df$x1, contacts.df$y1), 
+                                          end = c(contacts.df$x2, contacts.df$y2)))
+
+mcols(my_roi_all.gr)$counts <- rep(contacts.df$counts, n=2)
+
+# Merge overlaping ranges
+my_roi_all_merged.gr <- reduce(my_roi_all.gr)
+
+# Find overlaps between my_regions_of_interest.gr and my_regions_of_interest_merged.gr
+overlaps <- findOverlaps(my_regions_of_interest.gr, my_roi_all_merged.gr, type = "any", ignore.strand = TRUE)
+
+# Aggregate metadata for the merged ranges (example: concatenate gene names)
+# Create an empty list to store aggregated metadata
+aggregated_metadata <- list()
+for (i in seq_along(my_roi_all_merged.gr)) {
+  # Get original ranges that overlap with the current reduced range
+  original_indices <- queryHits(overlaps)[subjectHits(overlaps) == i]
+  
+  # Concatenate gene names
+  aggregated_metadata[[i]] <- sum(my_roi_all.gr$counts[original_indices])
+}
+
+# Add aggregated metadata to the reduced GRanges object
+mcols(my_roi_all_merged.gr)$counts_sum <- unlist(aggregated_metadata)
+
+# delete my_roi_all_merged.gr intervals overlapping coords 14304362-14308801
+my_roi_all_merged.gr <- my_roi_all_merged.gr[(end(my_roi_all_merged.gr) < 14304362 | start(my_roi_all_merged.gr) > 14308801)]
+
+# Convert the GRanges object to a data frame for plotting
+my_roi_all_merged.df <- as.data.frame(my_roi_all_merged.gr)[,1:3] |> 
+  mutate(score = mcols(my_roi_all_merged.gr)$counts_sum, strand = '.')
+
+
 
 ################################
 # Make virtual-4C plot
 ################################
+
+dir.create(paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/Plots/"), showWarnings = FALSE, recursive = TRUE)
 
   pdf(file = paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/Plots/virtual4c-",s,"-",resolution,".pdf"), height = 16, width = 16)
   #png(file = paste0("./virtual-4C-analysis_files/Plots/virtual4c-",s,"-",resolution,".png"), height = 4600, width = 4600, res=300)
@@ -226,7 +268,7 @@ hicDataChromRegion <- readHic(file = hicFile,
     data = my_roi_all_merged.df,
     chrom = "chr3R", chromstart = region_start, chromend = region_end,
     assembly = Dm6,
-    x = 0.5, y = 13.4, width = 15, height = 1, linecolor = "#6600cc", 
+    x = 0.5, y = 13.4, width = 15, height = 1, linecolor = "#6600cc", fill = "#6600cc",
     just = c("left", "top"), default.units = "inches"
   )
   
