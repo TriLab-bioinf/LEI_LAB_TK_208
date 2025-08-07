@@ -127,6 +127,8 @@ hicFile <- list.files(path = paste(WD,"juicer_results",s,sep = "/"),
                       pattern = paste0("*inter_30.hic"), 
                       full.names = TRUE, , recursive = TRUE)
 
+print(paste("Importing Hi-C data from file:", hicFile))
+
 hicDataChromRegion <- readHic(file = hicFile,
                               chrom = "3R", assembly = Dm6,
                               chromstart = region_start, chromend = region_end,
@@ -171,7 +173,8 @@ my_roi_all_merged.gr <- my_roi_all_merged.gr[(end(my_roi_all_merged.gr) < 143043
 
 # Convert the GRanges object to a data frame for plotting
 my_roi_all_merged.df <- as.data.frame(my_roi_all_merged.gr)[,1:3] |> 
-  mutate(score = mcols(my_roi_all_merged.gr)$counts_sum, strand = '.')
+  mutate(score = if_else(my_roi_all_merged.gr$counts_sum == 0, 0, log10(mcols(my_roi_all_merged.gr)$counts_sum) ), strand = '.') |> 
+  filter( ( (start-14308801) * ( end-14304362) ) > 0 )
 
 
 
@@ -229,7 +232,7 @@ dir.create(paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     chrom = "chr3R", chromstart = region_start, chromend = region_end,
     assembly = Dm6,
     x = 0.5, y = 12.4, width = 15, height = 0.3, linecolor = "#33ccff", 
-    just = c("left", "top"), default.units = "inches"
+    just = c("left", "top"), default.units = "inches", scale = TRUE, fontsize = 8,
   )
   
   # 6- Plot signal track data SuHw ChIRP -------------------------------
@@ -244,7 +247,7 @@ dir.create(paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     chrom = "chr3R", chromstart = region_start, chromend = region_end,
     assembly = Dm6,
     x = 0.5, y = 12.9, width = 15, height = 0.3, linecolor = "#ff9900", 
-    just = c("left", "top"), default.units = "inches"
+    just = c("left", "top"), default.units = "inches", scale = TRUE, fontsize = 8,
   )
   
   # Overlap with regions of interest
@@ -253,14 +256,14 @@ dir.create(paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     chrom = "chr3R", chromstart = region_start, chromend = region_end,
     assembly = Dm6,
     x = 0.5, y = 12.9, width = 15, height = 0.3, linecolor = "blue3", 
-    just = c("left", "top"), default.units = "inches"
+    just = c("left", "top"), default.units = "inches", scale = TRUE, fontsize = 8,
   )
   
   
   # 7- Plot all Virtual 4C contacts, including N.S.  -------------------------------
   plotText(
-    label = "Virtual 4C Su(Hw)", fontsize = 8,
-    x = 0.5, y = 13.3, just = "left",
+    label = "Virtual 4C Su(Hw) (Log10)", fontsize = 8,
+    x = 0.5, y = 13.4, just = "left",
     default.units = "inches",
   )
   
@@ -268,14 +271,14 @@ dir.create(paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     data = my_roi_all_merged.df,
     chrom = "chr3R", chromstart = region_start, chromend = region_end,
     assembly = Dm6,
-    x = 0.5, y = 13.4, width = 15, height = 1, linecolor = "#6600cc", fill = "#6600cc",
-    just = c("left", "top"), default.units = "inches"
+    x = 0.5, y = 13.5, width = 15, height = 1, linecolor = "#6600cc", fill = "#6600cc",
+    just = c("left", "top"), default.units = "inches", scale = TRUE, fontsize = 8,
   )
   
   # 8- Plot Virtual 4C -------------------------------
   plotText(
     label = paste("Virtual 4C", s), fontsize = 8,
-    x = 0.5, y = 14.5, just = "left",
+    x = 0.5, y = 14.6, just = "left",
     default.units = "inches",
   )
   
@@ -290,7 +293,7 @@ dir.create(paste0("~/data/ELISSA_LEI/TK_208/R/render/virtual-4C-analysis_files/P
     flip = TRUE,
     archHeight = bedpe$archight,
     alpha = 1,
-    x = 0.5, y = 14.6, width = 15, height = 1,
+    x = 0.5, y = 14.7, width = 15, height = 1,
     just = c("left", "top"),
     default.units = "inches", baseline = TRUE, lwd = 0.2
   )
