@@ -14,7 +14,7 @@ warning: false
 #### Notes:
 - Using Dm6.52 as the reference genome and annotation.
 - Only main chromosomes were included.
-- CLosest DpnII sites to gene boundaries are 3R:14,304,362-14,308,801
+- Closest DpnII sites to gene boundaries are 3R:14,304,362-14,308,801
 - Closest bins to SuHw boundaries are  
 
 
@@ -23,8 +23,15 @@ WD <- "/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208"
 
 
 # Load required packages
-pacman::p_load(tidyverse, GenomicFeatures, txdbmaker, plotgardener, org.Dm.eg.db, TxDb.Dmelanogaster.UCSC.dm6.ensGene, BSgenome.Dmelanogaster.UCSC.dm6, AnnotationDbi, HiContacts)
+pacman::p_load(tidyverse, GenomicFeatures, txdbmaker, plotgardener, org.Dm.eg.db, TxDb.Dmelanogaster.UCSC.dm6.ensGene, BSgenome.Dmelanogaster.UCSC.dm6, AnnotationDbi, HiContacts, conflicted)
 
+# Fix function conflicts 
+conflicts_prefer(plotgardener::c)
+conflicts_prefer(dplyr::rename)
+conflicts_prefer(dplyr::select)
+conflicts_prefer(base::as.data.frame)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(GenomicRanges::reduce)
 
 # Create Dm6 assembly for plotgardener
 Dm6 <- assembly(
@@ -51,21 +58,19 @@ for (s in samples) {
     hiccup_file <- list.files(path = paste(WD,"juicer_results",s,"aligned",hicupps_loop_dir,sep = "/"),
                               pattern = paste0("postprocessed_pixels_",resolution,".bedpe"), 
                               full.names = TRUE, , recursive = TRUE)
-    hiccup_files[[my_key]] <- read_tsv(file = hiccup_file, col_names = TRUE, trim_ws = TRUE, ) |>
-                          rename("#chr1"="chr1")
+    hiccup_files[[my_key]] <- read_tsv(file = hiccup_file, col_names = TRUE, trim_ws = TRUE)[-1,] |>
+                          rename("chr1"="#chr1")
     hiccup_files[[my_key]] <- hiccup_files[[my_key]][-1,] |> 
       mutate(chr1 = paste0("chr",chr1)) |> 
       mutate(chr2 = paste0("chr",chr2))
   }
 }
-
-
 ```
 
 # Import ChIRP data from Irene
 ```{r}
-SuHw_ChIRP_concensus_file <- "../../data/bed_files/SuHw_ChIRP_concensus.bed"
-GSE200993_Mock_SuHw.overlap_file <- "../../data/bed_files/GSE200993_Mock_SuHw.overlap.bed"
+SuHw_ChIRP_concensus_file <- paste(WD,"data/bed_files/SuHw_ChIRP_concensus.bed", sep = "/")
+GSE200993_Mock_SuHw.overlap_file <- paste(WD, "data/bed_files/GSE200993_Mock_SuHw.overlap.bed", sep = "/")
 
 SuHw_ChIRP_conc.df <- read_tsv(file = SuHw_ChIRP_concensus_file, col_names = FALSE)
 GSE200993_Mock_SuHw.overlap.df <- read_tsv(file = GSE200993_Mock_SuHw.overlap_file, col_names = FALSE)
@@ -80,6 +85,33 @@ SuHw_ChIRP_conc.gr <- GRanges(seqnames = Rle(values = SuHw_ChIRP_conc.df$X1), ra
 
 GSE200993_Mock_SuHw.overlap.gr <- GRanges(seqnames = Rle(values =  GSE200993_Mock_SuHw.overlap.df$X1), ranges = IRanges(start = GSE200993_Mock_SuHw.overlap.df$X2 ,end =  GSE200993_Mock_SuHw.overlap.df$X3))
 
+```
+
+# Import ChIRP data peak intensities from Irene
+```{r}
+
+Pool_even_file <- paste(WD,"data/bed_files/pool_even_peak_intensity_all_reps.tsv", sep = "/")
+Pool_odd_file <- paste(WD,"data/bed_files/pool_odd_peak_intensity_all_reps.tsv", sep = "/")
+Pool3_file <- paste(WD,"data/bed_files/pool3_peak_intensity_all_reps.tsv", sep = "/")
+Pool4_file <- paste(WD,"data/bed_files/pool4_peak_intensity_all_reps.tsv", sep = "/")
+
+# Load pool peak files
+Pool_even.df <- read_tsv(file = Pool_even_file, col_names = TRUE)
+Pool_odd.df <- read_tsv(file = Pool_odd_file, col_names = TRUE)
+Pool3.df <- read_tsv(file = Pool3_file, col_names = TRUE)
+Pool4.df <- read_tsv(file = Pool4_file, col_names = TRUE)
+
+# Reformat pool peaks as bed. files
+Pool_even.df <- Pool_even.df |> rename("score"="average_intensity") |> mutate("strand"=".") |> select(c(chr, start, end, score, strand))
+Pool_odd.df <- Pool_odd.df |> rename("score"="average_intensity") |> mutate("strand"=".") |> select(c(chr, start, end, score, strand))
+Pool3.df <- Pool3.df |> rename("score"="average_intensity") |> mutate("strand"=".") |> select(c(chr, start, end, score, strand))
+Pool4.df <- Pool4.df |> rename("score"="average_intensity") |> mutate("strand"=".") |> select(c(chr, start, end, score, strand))
+
+# Convert to Granges object
+Pool_even.gr <- GRanges(seqnames = Rle(values = Pool_even.df$chr), ranges = IRanges(start = Pool_even.df$start, end =  Pool_even.df$end, intensity = Pool_even.df$score))
+Pool_odd.gr <- GRanges(seqnames = Rle(values = Pool_odd.df$chr), ranges = IRanges(start = Pool_odd.df$start, end =  Pool_odd.df$end, intensity = Pool_odd.df$score))
+Pool3.gr <- GRanges(seqnames = Rle(values = Pool3.df$chr), ranges = IRanges(start = Pool3.df$start, end =  Pool3.df$end, intensity = Pool3.df$score))
+Pool4.gr <- GRanges(seqnames = Rle(values = Pool4.df$chr), ranges = IRanges(start = Pool4.df$start, end =  Pool4.df$end, intensity = Pool4.df$score))
 ```
 
 # Make plots
