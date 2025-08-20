@@ -4,23 +4,25 @@ author: "Hernan Lorenzi"
 format: html
 echo: false
 warning: false
+bibliography: references.bib
 ---
 
 ## Project goals:
 
-1. Perform genome-wide virtual 4C analysis of different HiC datasets using SuHw gene (Dme6 = 3R:14,304,455..14,308,589 [-]) as bait.
-2. Investigate the presence of discarded HiC reads containing hits to SuHw gene and then determine if SuHw unmatched portions of reads hit anything else in the Dm genome (e.g. repetitive sequences).
+1.  Perform genome-wide virtual 4C analysis of different HiC datasets using SuHw gene (Dme6 = 3R:14,304,455..14,308,589 \[-\]) as bait.
+2.  Investigate the presence of discarded HiC reads containing hits to SuHw gene and then determine if SuHw unmatched portions of reads hit anything else in the Dm genome (e.g. repetitive sequences).
 
 #### Notes:
-- Using Dm6.52 as the reference genome and annotation.
-- Only main chromosomes were included.
-- Closest DpnII sites to gene boundaries are 3R:14,304,362-14,308,801
-- Closest bins to SuHw boundaries are  
 
+-   Using Dm6.52 as the reference genome and annotation.
+-   Only main chromosomes were included.
+-   Closest DpnII sites to gene boundaries are 3R:14,304,362-14,308,801
+-   Closest bins to SuHw boundaries are
 
 ```{r}
+#| message: false
+#| 
 WD <- "/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208"
-
 
 # Load required packages
 pacman::p_load(tidyverse, GenomicFeatures, txdbmaker, plotgardener, org.Dm.eg.db, TxDb.Dmelanogaster.UCSC.dm6.ensGene, BSgenome.Dmelanogaster.UCSC.dm6, AnnotationDbi, HiContacts, conflicted)
@@ -32,6 +34,16 @@ conflicts_prefer(dplyr::select)
 conflicts_prefer(base::as.data.frame)
 conflicts_prefer(dplyr::filter)
 conflicts_prefer(GenomicRanges::reduce)
+
+# Set ggplot defaults
+theme_set(
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank())
+)
+```
+
+### Load HICCUPS (loops) data
+```{r}
 
 # Create Dm6 assembly for plotgardener
 Dm6 <- assembly(
@@ -67,7 +79,8 @@ for (s in samples) {
 }
 ```
 
-# Import ChIRP data from Irene
+### Import ChIRP data from Irene
+
 ```{r}
 SuHw_ChIRP_concensus_file <- paste(WD,"data/bed_files/SuHw_ChIRP_concensus.bed", sep = "/")
 GSE200993_Mock_SuHw.overlap_file <- paste(WD, "data/bed_files/GSE200993_Mock_SuHw.overlap.bed", sep = "/")
@@ -87,9 +100,11 @@ GSE200993_Mock_SuHw.overlap.gr <- GRanges(seqnames = Rle(values =  GSE200993_Moc
 
 ```
 
-# Import ChIRP data peak intensities from Irene
-```{r}
+### Import ChIRP data peak intensities from Irene
 
+```{r}
+#| message: false
+#| 
 Pool_even_file <- paste(WD,"data/bed_files/pool_even_peak_intensity_all_reps.tsv", sep = "/")
 Pool_odd_file <- paste(WD,"data/bed_files/pool_odd_peak_intensity_all_reps.tsv", sep = "/")
 Pool3_file <- paste(WD,"data/bed_files/pool3_peak_intensity_all_reps.tsv", sep = "/")
@@ -114,10 +129,11 @@ Pool3.gr <- GRanges(seqnames = Rle(values = Pool3.df$chr), ranges = IRanges(star
 Pool4.gr <- GRanges(seqnames = Rle(values = Pool4.df$chr), ranges = IRanges(start = Pool4.df$start, end =  Pool4.df$end, intensity = Pool4.df$score))
 ```
 
-# Make plots
+#### Make plots
 
 ```{r}
-
+#| message: false
+#| 
 dir.create(path = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables"), recursive = TRUE, showWarnings = FALSE)
 
 source("/gpfs/gsfs12/users/lorenziha/ELISSA_LEI/TK_208/R/scripts/plots_virtual4C.R")
@@ -145,6 +161,158 @@ for (sample in samples){
     write_csv(x = my_bedpe, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Tables/virtual4C-",sample,"-25Kb.csv"))
   }
 }
+
+```
+
+### Look at correlations between ChIRP and HiC contacts (Figure 5 from [@quinn2014]).
+
+From the methods section:
+
+For the correlation analysis, the D. melanogaster genome (dm3 assembly) was divided into 33739 5kb windows. For each sample, the normalized number of reads that fall into each window was calculated, log2-transformed and plotted pairwise as scatter plots (roX1 D2 vs. roX1 D3 dChIRPs; roX1 D3 dChIRP vs. roX2 ChIRP). Motif analysis of the peaks was performed using MEME36. Hi-C data showing chromosome confirmation in mixed male/female embryos was obtained from Sexton et al., 2012 (Ref. 27, GSM849422) at a resolution of 80kb. 
+
+**The proximities between all 80kb chromosome bins on X chromosome with roX1 and roX2 loci were defined as the observed counts divided by the expected counts in Hi-C experiment. roX2 ChIRP and roX1 dChIRP occupancy (log2-transformed number of reads within each 80kb window) versus roX2 and roX1 Hi-C proximities, respectively were shown and Pearson correlations between each pair were calculated**. 
+
+**Signals within a 400kb window around the roX1 and roX2 loci were masked before calculating the Pearson correlation to avoid bias due to strong correlations of ChIRP/dChIRP signals with Hi-C signals at these loci**.
+
+
+```{r}
+# Define inputs
+chr3R_length <-  32050000
+suhw_coords <- c("start" = 14304362, "end" = 14308801)
+chirp <-  c("Pool_even","Pool_odd","Pool3","Pool4")[4]
+chirp.df <- get(paste0(chirp,".df"))
+
+# Import HiC data 
+s = "mock_1"
+resolution <-  5000
+
+my_key <- paste0(s,":",resolution)
+bedpe <- tibble()
+
+# ---- Import HiC data for region of interest ----
+
+# 1. Load file
+hicFile <- list.files(path = paste(WD,"juicer_results",s,sep = "/"),
+                      pattern = paste0("*inter_30.hic"), 
+                      full.names = TRUE, , recursive = TRUE)
+
+hicData <- readHic(file = hicFile,
+                    chrom = "3R", assembly = Dm6,
+                    resolution = resolution, 
+                    res_scale = "BP", 
+                    norm = "KR",
+                    matrix = "oe")
+
+# 2. Keep only contacts with Su(Hw) gene
+contacts.df <- hicData |> 
+                rename("x1"="3R_A", "y1"="3R_B") |> 
+                mutate(x2=x1+resolution-2, y2=y1+resolution-2) |> 
+                filter( ( ( (x1-suhw_coords["end"]) * (x2-suhw_coords["start"]) ) < 0) | 
+                        ( ( (y1-suhw_coords["end"]) * (y2-suhw_coords["start"]) ) < 0)
+                        )
+
+# 3. Merge x1 and y1 columns
+contacts.df <- rbind(select(contacts.df, x1, counts) |> rename("bin"="x1"), 
+      select(contacts.df, y1, counts) |> rename("bin"="y1")) |> 
+      group_by(bin) |> summarize(hic_val = sum(counts))
+
+# ---- Bin ChIRP score data into resolution-wide bins
+chirp.bin <- chirp.df |> mutate(midpoint = (start + end) / 2) |> mutate(bin = trunc(midpoint/resolution) * resolution) |> group_by(bin) |> summarize(chirp_val = sum(score))
+
+# ---- Divide the length of chr3R into bins of 5000 in size ----
+correl.df <- tibble(bin = seq(0, chr3R_length, resolution) )
+
+# ---- Add ChIRP and HiC values and hiccups loop predictions to correl.df using left join ----
+correl.df <- left_join(correl.df, contacts.df, by = "bin")
+correl.df <- left_join(correl.df, chirp.bin, by = "bin")
+
+hiccup_loops <- hiccup_files[[paste0("mock_1:", resolution)]] |> 
+  filter(chr1 == "chr3R") |>
+  filter( ( ( (x1-suhw_coords["end"]) * (x2-suhw_coords["start"]) ) < 0) | 
+          ( ( (y1-suhw_coords["end"]) * (y2-suhw_coords["start"]) ) < 0)
+        ) |> 
+  select(x1, y1, observed) |> 
+  pivot_longer(cols = c("x1", "y1"), names_to = "bin_col", values_to = "bin") |>
+  filter(!duplicated(bin)) |> select(-bin_col) |> rename("hiccups_loop"="observed") 
+
+correl.df <- left_join(correl.df, hiccup_loops, by = "bin") |> 
+  mutate(hiccups_loop = if_else(is.na(hiccups_loop), "no_prediction", "loop"))
+
+# ---- Remove bins within a 15000 bp window of the Su(Hw) gene  ----
+window <- 15000
+correl.df <- correl.df |> filter( (bin + resolution > (suhw_coords["end"] + window) ) |
+              (bin < (suhw_coords["start"] - window)) )
+```
+
+### Check normality distribution of ChIRP and HiC data 
+```{r}
+# ---- Check normality distribution of ChIRP and HiC data ----
+
+# 1. HiC KR-normalized oe values
+qqnorm(correl.df$hic_val, main = "Obs vs Exp HiC values KR-normalized")
+
+# 2. HiC KR-normalized oe values log2-transformed
+qqnorm(log2(correl.df$hic_val), main = "Log2-transformed Obs vs Exp HiC values KR-normalized")
+
+# 1. HiC KR-normalized oe values
+qqnorm(correl.df$chirp_val, main = "Normalized ChIRP values")
+
+# 2. HiC KR-normalized oe values log2-transformed
+qqnorm(log2(correl.df$chirp_val), main = "Log2-transformed normalized ChIRP values")
+```
+
+
+### Log2-transform HiC and ChIRP data
+
+Q-Q plots indicate that it is better to work with log2-transformed values for both, HiC (oe) and ChIRP datasets.
+
+```{r}
+# ---- Transform ChIRP and HiC data to log2 values to follow paper instructions ----
+correl.df <- correl.df |> mutate(chirp_val = log2(chirp_val), hic_val = log2(hic_val))
+
+```
+
+### Calculate Pearsons correlation
+```{r}
+
+pearson.corr <- cor.test(x = correl.df$hic_val, y = correl.df$chirp_val, method = "pearson")
+
+p <- filter(correl.df, hiccups_loop == "no_prediction") |>
+      ggplot(aes(x = hic_val, y = chirp_val)) + 
+      geom_point(color = "grey") + 
+      geom_point(data = filter(correl.df, hiccups_loop == "loop"), color = "red") +
+      labs(title = paste("HiC contacts versus ChIRP",chirp,"values"), x = "HiC Obs vs Exp (Log2)", y = "ChIRP (Log2)") +
+      annotate(geom = "point", shape = 16, size = 3, color = "red", x = 4.5, y = 0) +
+      annotate(geom = "text", label = "HICCUPS predicted loop", x = 5.8,y = 0) +
+      annotate(geom = "text", x = 4.5, y = 7, hjust = 0, 
+           label = paste("Pearson correlation\nR =", 
+                         round(pearson.corr$estimate, digits = 2),
+                         "\np-value =", round(pearson.corr$p.value, digits = 4)))
+
+ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/scatterplot_chirp_",chirp,"_vs_hic_",resolution,"_correlations.pdf"), height = 8, width = 8)
+p
+```
+
+
+# Plot ChIRP vs HiC Pearson correlations
+```{r}
+# Reshape and clean correl.df for plotting
+correl_clean.df <- correl.df |> pivot_longer(cols = c(hic_val, chirp_val), names_to = c("Experiment"), values_to = c("Score"), values_drop_na = TRUE) |> rename("Bin"="bin") 
+
+# Make line plot with each experiment as a single line, Bins on the x-axis and score on the y-axis
+p <- correl_clean.df |> 
+  ggplot(aes(x = Bin, y = Score, group = Experiment, colour = Experiment)) +
+  geom_line() + 
+  ylim(0,15) + 
+  xlim(8e6,22.1e6) + 
+  labs(title = paste("Pearson correlation between HiC contacts and ChIRP",chirp,"values"), x = "chr3R position (bp)", y = "Intensity value (Log2)") +
+  scale_color_brewer(palette = "Paired") +
+  annotate(geom = "text", x = 9e6, y = 10, hjust = 0, 
+           label = paste("Pearson correlation\nR =", 
+                         round(pearson.corr$estimate, digits = 2),
+                         "\np-value =", round(pearson.corr$p.value, digits = 4)))
+
+ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/chirp_",chirp,"_vs_hic_",resolution,"_correlations.pdf"), height = 8, width = 8)
 
 ```
 
