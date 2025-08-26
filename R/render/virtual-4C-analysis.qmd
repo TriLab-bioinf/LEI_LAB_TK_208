@@ -175,24 +175,26 @@ For the correlation analysis, the D. melanogaster genome (dm3 assembly) was divi
 **Signals within a 400kb window around the roX1 and roX2 loci were masked before calculating the Pearson correlation to avoid bias due to strong correlations of ChIRP/dChIRP signals with Hi-C signals at these loci**.
 
 
+### Prepare data
 ```{r}
 # Define inputs
 chr3R_length <-  32050000
 suhw_coords <- c("start" = 14304362, "end" = 14308801)
-chirp <-  c("Pool_even","Pool_odd","Pool3","Pool4")[4]
+suhw_mean_coords <- round(mean(c(suhw_coords["start"], suhw_coords["end"])))
+chirp <-  c("Pool_even","Pool_odd","Pool3","Pool4")[1]
 chirp.df <- get(paste0(chirp,".df"))
 
 # Import HiC data 
-s = "mock_1"
-resolution <-  5000
+hic_sample_id <-  c("mock_1", "mock_2","HiC_NT_rep1-4_merged")[1] 
+resolution <-  c(5000, 10000, 25000)[1]
 
-my_key <- paste0(s,":",resolution)
+my_key <- paste0(hic_sample_id,":",resolution)
 bedpe <- tibble()
 
 # ---- Import HiC data for region of interest ----
 
 # 1. Load file
-hicFile <- list.files(path = paste(WD,"juicer_results",s,sep = "/"),
+hicFile <- list.files(path = paste(WD,"juicer_results",hic_sample_id,sep = "/"),
                       pattern = paste0("*inter_30.hic"), 
                       full.names = TRUE, , recursive = TRUE)
 
@@ -217,7 +219,11 @@ contacts.df <- rbind(select(contacts.df, x1, counts) |> rename("bin"="x1"),
       group_by(bin) |> summarize(hic_val = sum(counts))
 
 # ---- Bin ChIRP score data into resolution-wide bins
-chirp.bin <- chirp.df |> mutate(midpoint = (start + end) / 2) |> mutate(bin = trunc(midpoint/resolution) * resolution) |> group_by(bin) |> summarize(chirp_val = sum(score))
+chirp.bin <- chirp.df |> 
+              mutate(midpoint = (start + end) / 2) |> 
+              mutate(bin = trunc(midpoint/resolution) * resolution) |> 
+              group_by(bin) |> 
+              summarize(chirp_val = sum(score))
 
 # ---- Divide the length of chr3R into bins of 5000 in size ----
 correl.df <- tibble(bin = seq(0, chr3R_length, resolution) )
@@ -233,15 +239,18 @@ hiccup_loops <- hiccup_files[[paste0("mock_1:", resolution)]] |>
         ) |> 
   select(x1, y1, observed) |> 
   pivot_longer(cols = c("x1", "y1"), names_to = "bin_col", values_to = "bin") |>
-  filter(!duplicated(bin)) |> select(-bin_col) |> rename("hiccups_loop"="observed") 
+  filter(!duplicated(bin)) |> 
+  select(-bin_col) |> 
+  rename("hiccups_loop"="observed") 
 
-correl.df <- left_join(correl.df, hiccup_loops, by = "bin") |> 
-  mutate(hiccups_loop = if_else(is.na(hiccups_loop), "no_prediction", "loop"))
+correl.df <- left_join(correl.df, hiccup_loops, by = "bin") |>
+              mutate(hiccups_loop = if_else(is.na(hiccups_loop), "no_prediction", "loop"))
 
 # ---- Remove bins within a 15000 bp window of the Su(Hw) gene  ----
 window <- 15000
-correl.df <- correl.df |> filter( (bin + resolution > (suhw_coords["end"] + window) ) |
-              (bin < (suhw_coords["start"] - window)) )
+correl.df <- correl.df |> 
+              filter( (bin + resolution > (suhw_coords["end"] + window) ) |
+                (bin < (suhw_coords["start"] - window)) )
 ```
 
 ### Check normality distribution of ChIRP and HiC data 
@@ -268,12 +277,22 @@ Q-Q plots indicate that it is better to work with log2-transformed values for bo
 
 ```{r}
 # ---- Transform ChIRP and HiC data to log2 values to follow paper instructions ----
-correl.df <- correl.df |> mutate(chirp_val = log2(chirp_val), hic_val = log2(hic_val))
+correl.df <- correl.df |> 
+              mutate(chirp_val = log2(chirp_val), hic_val = log2(hic_val))
 
 ```
 
-### Calculate Pearsons correlation
+### Remove bins outside area of interest (~8Mb to 21Mb on chr3R)
 ```{r}
+correl.df <- filter(correl.df, bin > 8e6 & bin < 22.1e6)
+```
+
+
+### Calculate Pearsons correlation and make plot
+```{r}
+
+# Estimate x-axis coordinate for annotated text
+annot_text_x_coord <- (max(correl.df$hic_val, na.rm = TRUE) - min(correl.df$hic_val, na.rm = TRUE)) * 0.75 + min(correl.df$hic_val, na.rm = TRUE)
 
 pearson.corr <- cor.test(x = correl.df$hic_val, y = correl.df$chirp_val, method = "pearson")
 
@@ -281,38 +300,93 @@ p <- filter(correl.df, hiccups_loop == "no_prediction") |>
       ggplot(aes(x = hic_val, y = chirp_val)) + 
       geom_point(color = "grey") + 
       geom_point(data = filter(correl.df, hiccups_loop == "loop"), color = "red") +
-      labs(title = paste("HiC contacts versus ChIRP",chirp,"values"), x = "HiC Obs vs Exp (Log2)", y = "ChIRP (Log2)") +
-      annotate(geom = "point", shape = 16, size = 3, color = "red", x = 4.5, y = 0) +
-      annotate(geom = "text", label = "HICCUPS predicted loop", x = 5.8,y = 0) +
-      annotate(geom = "text", x = 4.5, y = 7, hjust = 0, 
+      labs(title = paste("HiC contacts (",hic_sample_id,"," ,resolution/1e3,"Kb resolution ) versus ChIRP",chirp,"values"), x = "HiC Obs vs Exp (Log2)", y = "ChIRP (Log2)") +
+      theme(title = element_text(face = "bold")) +
+  
+      # Add correlation line
+      geom_smooth(method = "lm", se = TRUE)+
+      
+      # Add annotations
+      annotate(geom = "point", shape = 16, size = 3, color = "red", x = annot_text_x_coord, y = 0,  hjust = 0) +
+      annotate(geom = "text", label = "HICCUPS predicted loop",  hjust = 0, x = annot_text_x_coord + 0.2,y = 0) +
+      annotate(geom = "text", x = annot_text_x_coord, y = 7, hjust = 0, 
            label = paste("Pearson correlation\nR =", 
                          round(pearson.corr$estimate, digits = 2),
-                         "\np-value =", round(pearson.corr$p.value, digits = 4)))
+                         ", p-value =", round(pearson.corr$p.value, digits = 3)))
 
-ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/scatterplot_chirp_",chirp,"_vs_hic_",resolution,"_correlations.pdf"), height = 8, width = 8)
+# Add line to correlation plot p
+
+
+ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/scatterplot_chirp_",chirp,"_vs_hic_",hic_sample_id,"_",resolution,"_correlations.pdf"), height = 8, width = 8)
 p
 ```
 
 
-# Plot ChIRP vs HiC Pearson correlations
+# Plot ChIRP vs HiC Pearson correlations (plot version 1)
 ```{r}
-# Reshape and clean correl.df for plotting
-correl_clean.df <- correl.df |> pivot_longer(cols = c(hic_val, chirp_val), names_to = c("Experiment"), values_to = c("Score"), values_drop_na = TRUE) |> rename("Bin"="bin") 
+# # Reshape and clean correl.df for plotting
+# correl_clean.df <- correl.df |> pivot_longer(cols = c(hic_val, chirp_val), names_to = c("Experiment"), values_to = c("Score"), values_drop_na = TRUE) |> rename("Bin"="bin") 
+# 
+# # Make line plot with each experiment as a single line, Bins on the x-axis and score on the y-axis
+# p <- correl_clean.df |> 
+#   ggplot(aes(x = Bin/1e6, y = Score, group = Experiment, colour = Experiment)) +
+#   geom_line() + 
+#   #ylim(0,15) + 
+#   xlim(8,22.1) + 
+#   labs(title = paste("Pearson correlation between HiC contacts and ChIRP",chirp,"values"), x = "chr3R position (Mb)", y = "Intensity value (Log2)") +
+#   scale_color_brewer(palette = "Paired") +
+#   
+#   # Add vertical line at SuHw position on chr3R
+#   geom_vline(xintercept = suhw_coords/1e6, linetype = 2, color = "#948d8d", linewidth = 0.5) +
+#   coord_cartesian(ylim = c(-4,15) ,clip = "off") + 
+#   annotate(geom = "text", x = suhw_coords/1e6, y = -5.5, label = "Su(Hw)") +
+#   
+#   # Add annotations
+#   annotate(geom = "text", x = 9, y = 10, hjust = 0, 
+#            label = paste("Pearson correlation\nR =", 
+#                          round(pearson.corr$estimate, digits = 2),
+#                          "\np-value =", round(pearson.corr$p.value, digits = 4)))
+# 
+# ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/chirp_",chirp,"_vs_hic_",resolution,"_correlations.pdf"), height = 8, width = 8)
 
-# Make line plot with each experiment as a single line, Bins on the x-axis and score on the y-axis
-p <- correl_clean.df |> 
-  ggplot(aes(x = Bin, y = Score, group = Experiment, colour = Experiment)) +
-  geom_line() + 
-  ylim(0,15) + 
-  xlim(8e6,22.1e6) + 
-  labs(title = paste("Pearson correlation between HiC contacts and ChIRP",chirp,"values"), x = "chr3R position (bp)", y = "Intensity value (Log2)") +
-  scale_color_brewer(palette = "Paired") +
-  annotate(geom = "text", x = 9e6, y = 10, hjust = 0, 
-           label = paste("Pearson correlation\nR =", 
-                         round(pearson.corr$estimate, digits = 2),
-                         "\np-value =", round(pearson.corr$p.value, digits = 4)))
+```
 
-ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/chirp_",chirp,"_vs_hic_",resolution,"_correlations.pdf"), height = 8, width = 8)
+# Plot ChIRP vs HiC Pearson correlations (plot version 2)
+```{r}
+hic_median <- median(correl.df$hic_val, na.rm = TRUE)
+chirp_median <- median(correl.df$chirp_val, na.rm = TRUE)
+correction <- hic_median - chirp_median
+
+p <- correl.df |> 
+  ggplot(aes(x = bin/1e6)) +
+  geom_line(aes(y = hic_val, color = "HiC")) +
+  geom_line(aes(y = chirp_val + correction, color = "ChIRP")) +
+  
+  # Add labels
+  labs(title = paste("Pearson correlation between HiC",hic_sample_id,"(",resolution/1e3, "Kb ) Su(Hw) contacts and ChIRP",chirp,"Su(Hw) ocupancy values"), x = "\nchr3R position (Mbp)", y = "Intensity value (Log2)") +
+  
+  # Add colors and secindary y-axis
+  scale_color_manual(values = c("HiC"="#FC8D62", "ChIRP"="#66C2A5")) +
+  scale_y_continuous(
+    name = "Su(Hw) contacts (Log2)\n(Virtual 4C)", 
+    sec.axis = sec_axis(~ . - correction, name = "Su(Hw) occupancy (Log2)\n(ChIRP)") ) + 
+  scale_x_continuous(expand = expansion(add = 0), limits = c(8,22.1), breaks = c(8:22)) +
+  theme(axis.title.y.left = element_text(color = "#FC8D62"), 
+        axis.title.y.right = element_text(color = "#66C2A5"),
+        legend.position = "none", title = element_text(face = "bold")) + 
+  
+  # Add vertical line at SuHw position on chr3R
+  geom_vline(xintercept = suhw_coords/1e6, linetype = 2, color = "#948d8d", linewidth = 0.5) +
+  coord_cartesian(ylim = c(-4,5) ,clip = "off") + 
+  annotate(geom = "text", x = suhw_coords/1e6, y = -4.8, label = "Su(Hw)", size = 3) +
+  
+  # Add annotations
+  annotate(geom = "text", x = 8.1, y = 5, hjust = 0, size = 3,
+           label = paste("Pearson correlation: R =", round(pearson.corr$estimate, digits = 2),
+                         ", p-value =", round(pearson.corr$p.value, digits = 4)))
+
+# Save plot
+ggsave(p, file = paste0(WD,"/R/render/virtual-4C-analysis_files/Plots/chirp_",chirp,"_vs_hic_",hic_sample_id,"_",resolution,"_correlations.pdf"), height = 4, width = 48)
 
 ```
 
